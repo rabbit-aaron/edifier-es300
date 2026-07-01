@@ -26,22 +26,20 @@ Usage:
 import asyncio
 import json
 import time
-from enum import IntEnum
 from typing import Any, AsyncIterator
 
-from .typing import CommandResult, FrameData, Status
+from .typing import (
+    CommandResult,
+    EqPreset,
+    FrameData,
+    LightColor,
+    LightEffect,
+    Source,
+    Status,
+)
 
 KEY: int = 0xA5
 FRAME_HEADER: bytes = b"\xee\xdd\xff\xee"
-
-
-class Source(IntEnum):
-    """Input sources; value is inputSource.selectedIndex (all verified live)."""
-
-    BLUETOOTH = 0
-    AUX = 1
-    USB = 2
-    AIRPLAY = 3
 
 
 def _xor(data: bytes) -> bytes:
@@ -53,10 +51,6 @@ def _uid() -> str:
 
 
 class ES300:
-    # The ES300 only does two colors; these are the exact RGB values the app sends.
-    YELLOW: dict[str, int] = {"r": 255, "g": 170, "b": 60}
-    WHITE: dict[str, int] = {"r": 255, "g": 255, "b": 255}
-
     def __init__(self, host, port, name: str | None = None) -> None:
         self.name: str | None = name  # from discovery; refreshed by status if present
         self._host: str = host
@@ -207,32 +201,28 @@ class ES300:
     async def light_switch(self, enabled: bool) -> CommandResult:
         return await self._command("lightEffect", {"lightSwitch": int(enabled)})
 
-    async def light_mode(self, mode: int) -> CommandResult:
-        return await self._command(
-            "lightEffect", {"selectedIndex": mode}
-        )  # 1=static 2=breathing 3=water-flow
+    async def light_effect(self, effect: LightEffect | int) -> CommandResult:
+        return await self._command("lightEffect", {"selectedIndex": int(effect)})
 
-    async def light_color(self, warm: bool) -> CommandResult:  # warm=yellow, cool=white
-        return await self._command(
-            "lightEffect", {"color": self.YELLOW if warm else self.WHITE}
-        )
+    async def light_color(self, color: LightColor) -> CommandResult:
+        return await self._command("lightEffect", {"color": color.value})
 
     async def input_source(self, source: Source | int) -> CommandResult:
         return await self._command("inputSource", {"selectedIndex": int(source)})
 
     # EQ. Active EQ is chosen by selectedIndex (index into the speaker's preset list;
     # the last entry is the editable custom slot, auto-selected when you set gains).
-    async def eq_preset(self, selected_index: int) -> CommandResult:
+    async def eq_preset(self, preset: EqPreset | int) -> CommandResult:
         current = await self.status()
         sound_index = current.sound_index if current else 2
         return await self._command(
             "soundEffect",
-            {"soundIndex": sound_index, "selectedIndex": selected_index},
+            {"soundIndex": sound_index, "selectedIndex": int(preset)},
         )
 
     async def eq_custom(
         self, gains: list[int]
-    ) -> CommandResult:  # up to 6 ints, -30..30, for 62/250/1k/4k/8k/16k Hz
+    ) -> CommandResult:  # up to 6 ints in tenths of a dB (-30..30 = -3.0..+3.0 dB), for 62/250/1k/4k/8k/16k Hz
         current = await self.status()
         sound_effect = current.raw["soundEffect"]
         diy = sound_effect["soundEffectDIY"]
@@ -243,7 +233,7 @@ class ES300:
             "soundEffect",
             {
                 "soundIndex": sound_effect["soundIndex"],
-                "selectedIndex": sound_effect["selectedIndex"],
+                "selectedIndex": int(EqPreset.CUSTOMIZED),  # editing gains selects the custom slot
                 "soundEffectDIY": diy,
             },
         )

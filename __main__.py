@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Command-line interface for the Edifier ES300, built with click.
 
-Run as a module:  python -m edifier_es300.__module__ [OPTIONS] COMMAND [ARGS]
+Run as a module:  python -m edifier_es300 [OPTIONS] COMMAND [ARGS]
 """
 
 import asyncio
@@ -10,7 +10,7 @@ from typing import NamedTuple
 
 import click
 
-from . import ES300, Source, Status
+from . import ES300, EqPreset, LightColor, LightEffect, Source, Status
 from .typing import CommandResult
 
 DEFAULT_PORT: int = 8080
@@ -126,11 +126,12 @@ def prev(target: Target) -> None:
 @cli.command()
 @click.argument("level", type=click.IntRange(0, 100))
 @click.pass_obj
-def bright(target: Target, level: int) -> None:
+def light_brightness(target: Target, level: int) -> None:
     """Set LED brightness (0..100)."""
     _report(
         f"brightness={level}", _execute(target, lambda device: device.brightness(level))
     )
+
 
 
 @cli.command()
@@ -145,23 +146,23 @@ def light(target: Target, state: str) -> None:
 
 
 @cli.command()
-@click.argument("mode", type=click.Choice(["static", "breathing", "water"]))
+@click.argument("name", type=click.Choice(["static", "breathing", "waterflow"]))
 @click.pass_obj
-def mode(target: Target, mode: str) -> None:
-    """Set light mode."""
-    index = {"static": 1, "breathing": 2, "water": 3}[mode]
-    _report(f"mode {mode}", _execute(target, lambda device: device.light_mode(index)))
+def light_effect(target: Target, name: str) -> None:
+    """Set light effect."""
+    chosen = LightEffect[name.upper()]
+    _report(f"effect {name}", _execute(target, lambda device: device.light_effect(chosen)))
 
 
 @cli.command()
-@click.argument("temperature", type=click.Choice(["warm", "yellow", "cool", "white"]))
+@click.argument("name", type=click.Choice(["yellow", "white"]))
 @click.pass_obj
-def color(target: Target, temperature: str) -> None:
-    """Set light color (warm/yellow or cool/white)."""
-    warm = temperature in ("warm", "yellow")
+def light_color(target: Target, name: str) -> None:
+    """Set light color (yellow or white)."""
+    chosen = LightColor[name.upper()]
     _report(
-        f"color {temperature}",
-        _execute(target, lambda device: device.light_color(warm)),
+        f"color {name}",
+        _execute(target, lambda device: device.light_color(chosen)),
     )
 
 
@@ -177,12 +178,15 @@ def source(target: Target, name: str) -> None:
 
 
 @cli.command()
-@click.argument("index", type=int)
+@click.argument(
+    "name", type=click.Choice(["classic", "monitor", "game", "vocal", "customized"])
+)
 @click.pass_obj
-def preset(target: Target, index: int) -> None:
-    """Select an EQ preset by index."""
+def preset(target: Target, name: str) -> None:
+    """Select an EQ preset."""
+    chosen = EqPreset[name.upper()]
     current = _report(
-        f"preset {index}", _execute(target, lambda device: device.eq_preset(index))
+        f"preset {name}", _execute(target, lambda device: device.eq_preset(chosen))
     )
     click.echo("selectedIndex %s" % (current.eq_selected_index if current else "?"))
 
@@ -191,7 +195,7 @@ def preset(target: Target, index: int) -> None:
 @click.argument("gains", type=int, nargs=-1)
 @click.pass_obj
 def eq(target: Target, gains: tuple[int, ...]) -> None:
-    """Set custom 6-band gains (-30..30) for 62/250/1k/4k/8k/16k Hz."""
+    """Set custom 6-band gains in tenths of a dB (-30..30 = -3.0..+3.0 dB), for 62/250/1k/4k/8k/16k Hz."""
     label = "eq %s" % " ".join(str(gain) for gain in gains)
     current = _report(
         label, _execute(target, lambda device: device.eq_custom(list(gains)))
