@@ -1,0 +1,29 @@
+default_language_version:
+  python: python3.13
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+      - id: debug-statements
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.20
+    hooks:
+      # Lint + import sorting (fixes what it can, incl. isort-style I rules).
+      - id: ruff
+        args: [--fix]
+      # Formatting.
+      - id: ruff-format
+
+  - repo: https://github.com/astral-sh/ty-pre-commit
+    rev: v0.0.56
+    hooks:
+      - id: ty

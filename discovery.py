@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Auto-discovery for Edifier ES300 speakers on the local network.
 
@@ -30,7 +29,7 @@ import json
 import logging
 from dataclasses import dataclass
 
-from .typing import FrameData
+from edifier_es300.typing_ import FrameData
 
 logger = logging.getLogger(__name__)
 

@@ -1,17 +1,11 @@
-#!/usr/bin/env python3
-"""Command-line interface for the Edifier ES300, built with click.
-
-Run as a module:  python -m edifier_es300 [OPTIONS] COMMAND [ARGS]
-"""
-
 import asyncio
 from collections.abc import Awaitable, Callable
 from typing import NamedTuple
 
 import click
 
-from . import ES300, EqPreset, LightColor, LightEffect, Source, Status
-from .typing import CommandResult
+from edifier_es300 import ES300, EqPreset, LightColor, LightEffect, Source, Status
+from edifier_es300.typing_ import CommandResult
 
 DEFAULT_PORT: int = 8080
 
@@ -140,7 +134,6 @@ def light_brightness(target: Target, level: int) -> None:
     )
 
 
-
 @cli.command()
 @click.argument("state", type=click.Choice(["on", "off"]))
 @click.pass_obj
@@ -158,7 +151,9 @@ def light(target: Target, state: str) -> None:
 def light_effect(target: Target, name: str) -> None:
     """Set light effect."""
     chosen = LightEffect[name.upper()]
-    _report(f"effect {name}", _execute(target, lambda device: device.light_effect(chosen)))
+    _report(
+        f"effect {name}", _execute(target, lambda device: device.light_effect(chosen))
+    )
 
 
 @cli.command()

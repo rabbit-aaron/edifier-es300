@@ -16,7 +16,7 @@ An `asyncio` package to control an Edifier ES300 speaker on the local network, p
   transport, light, EQ, input source), and the `discover()` classmethod. Stdlib-only.
 - `typing.py` — **all shared types**: `FrameData`, the `Status` dataclass,
   `CommandResult`, and every device enum (`Source`, `EqPreset`, `LightEffect`,
-  `LightColor`, `BatteryStatus`) plus the `_Named` enum mixin. It imports nothing from
+  `LightColor`, `BatteryStatus`, `PlayerStatus`). It imports nothing from
   the package, so it can never be part of an import cycle.
 - `__main__.py` — the `click` CLI (`python -m edifier_es300`). A thin wrapper:
   resolve a target (explicit `--host/--port` or auto-discover), open one connection
@@ -38,8 +38,9 @@ An `asyncio` package to control an Edifier ES300 speaker on the local network, p
 - **No 1–2 character variable names.** Spell them out (`header_pos`, `payload_len`,
   `device`, `frame`, `chunk`).
 - **Device settings are enums.** `IntEnum` for index-valued settings (`Source`,
-  `EqPreset`, `LightEffect`, `BatteryStatus`); a plain `Enum` for `LightColor` (its
-  value is the RGB payload). All inherit `_Named` so they stringify as `Class.MEMBER`.
+  `EqPreset`, `LightEffect`, `BatteryStatus`, `PlayerStatus`); a plain `Enum` for `LightColor` (its
+  value is the RGB payload). For display, format members with `repr` (`%r` / `{x!r}`),
+  which gives `<Source.AIRPLAY: 3>`; plain `str` on an `IntEnum` is just the number.
   Index enums also accept a raw `int` in method signatures (`Source | int`).
 - **CLI:** one `click` command per action; enum args use `click.Choice(...)` resolved
   via `Enum[name.upper()]`. Omitting `--host` triggers auto-discovery.
@@ -49,8 +50,8 @@ An `asyncio` package to control an Edifier ES300 speaker on the local network, p
 ## Python gotchas hit here
 
 - **`IntEnum.__str__` returns the number** in 3.11+ (`str(Source.AIRPLAY)` → `3`, not
-  `Source.AIRPLAY`). The `_Named` mixin restores a name-based `__str__`, so `Status`
-  can just print enum instances.
+  `Source.AIRPLAY`). Use `repr` for display (`%r`) — `repr(Source.AIRPLAY)` →
+  `<Source.AIRPLAY: 3>` — which is why `Status.__str__` formats enum fields with `%r`.
 - **An `IntEnum` member with value `0` is falsy** (`EqPreset.CLASSIC`). Never test an
   enum lookup with truthiness — use `is None`.
 - **`LightColor`'s value is a dict** (unhashable). `LightColor(some_dict)` still works

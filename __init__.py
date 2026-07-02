@@ -26,14 +26,16 @@ Usage:
 import asyncio
 import json
 import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
-from .typing import (
+from edifier_es300.typing_ import (
     CommandResult,
     EqPreset,
     FrameData,
     LightColor,
     LightEffect,
+    PlayerStatus,
     Source,
     Status,
 )
@@ -147,7 +149,7 @@ class ES300:
                 chunk = await asyncio.wait_for(
                     self._reader.read(8192), timeout=remaining
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return
             if not chunk:
                 return
@@ -192,17 +194,21 @@ class ES300:
         return await self._command("player", {"volume": level})  # 0..30
 
     async def play(self) -> CommandResult:
-        return await self._command("player", {"playerStatus": 1})
+        return await self._command(
+            "player", {"playerStatus": int(PlayerStatus.PLAYING)}
+        )
 
     async def pause(self) -> CommandResult:
-        return await self._command("player", {"playerStatus": 0})
+        return await self._command(
+            "player", {"playerStatus": int(PlayerStatus.STOPPED)}
+        )
 
     async def play_pause_toggle(self) -> CommandResult:
-        # playerStatus: 0=paused, non-zero=playing. Toggle by sending the opposite
-        # of the current state, mirroring the app's play button.
+        # Toggle by sending the opposite of the current state, like the app's button.
         current = await self.status()
-        playing = current is not None and current.player_status != 0
-        return await self._command("player", {"playerStatus": 0 if playing else 1})
+        playing = current is not None and current.player_status is PlayerStatus.PLAYING
+        target = PlayerStatus.STOPPED if playing else PlayerStatus.PLAYING
+        return await self._command("player", {"playerStatus": int(target)})
 
     async def next_track(self) -> CommandResult:
         return await self._command("player", {"next": 1})
@@ -239,6 +245,8 @@ class ES300:
         self, gains: list[int]
     ) -> CommandResult:  # up to 6 ints in tenths of a dB (-30..30 = -3.0..+3.0 dB), for 62/250/1k/4k/8k/16k Hz
         current = await self.status()
+        if current is None:
+            return (False, None)
         sound_effect = current.raw["soundEffect"]
         diy = sound_effect["soundEffectDIY"]
         for index, gain in enumerate(gains):
@@ -248,7 +256,9 @@ class ES300:
             "soundEffect",
             {
                 "soundIndex": sound_effect["soundIndex"],
-                "selectedIndex": int(EqPreset.CUSTOMIZED),  # editing gains selects the custom slot
+                "selectedIndex": int(
+                    EqPreset.CUSTOMIZED
+                ),  # editing gains selects the custom slot
                 "soundEffectDIY": diy,
             },
         )

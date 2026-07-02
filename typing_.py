@@ -7,14 +7,7 @@ from typing import Any
 type FrameData = dict[str, Any]  # a decoded JSON protocol frame
 
 
-class _Named(Enum):
-    """Enum mixin whose str is `Class.MEMBER` (IntEnum's default str is just the int)."""
-
-    def __str__(self) -> str:
-        return "%s.%s" % (type(self).__name__, self.name)
-
-
-class Source(_Named, IntEnum):
+class Source(IntEnum):
     """Input sources; value is inputSource.selectedIndex (all verified live)."""
 
     BLUETOOTH = 0
@@ -23,7 +16,7 @@ class Source(_Named, IntEnum):
     AIRPLAY = 3
 
 
-class EqPreset(_Named, IntEnum):
+class EqPreset(IntEnum):
     """EQ presets; value is soundEffect.selectedIndex (CUSTOMIZED is the custom slot)."""
 
     CLASSIC = 0
@@ -33,14 +26,14 @@ class EqPreset(_Named, IntEnum):
     CUSTOMIZED = 4
 
 
-class LightColor(_Named, Enum):
+class LightColor(Enum):
     """Ambient LED colors; value is the RGB the app sends (ES300 only does these two)."""
 
     YELLOW = {"r": 255, "g": 170, "b": 60}
     WHITE = {"r": 255, "g": 255, "b": 255}
 
 
-class LightEffect(_Named, IntEnum):
+class LightEffect(IntEnum):
     """Ambient LED effects; value is lightEffect.selectedIndex."""
 
     STATIC = 1
@@ -48,11 +41,18 @@ class LightEffect(_Named, IntEnum):
     WATERFLOW = 3
 
 
-class BatteryStatus(_Named, IntEnum):
+class BatteryStatus(IntEnum):
     """Battery power state; value is battery.status."""
 
     CONNECTED = 1  # external power connected
     DISCONNECTED = 2  # running on battery
+
+
+class PlayerStatus(IntEnum):
+    """Playback state; value is player.playerStatus."""
+
+    STOPPED = 0
+    PLAYING = 1
 
 
 @dataclass
@@ -63,7 +63,7 @@ class Status:
     max_volume: int
     song: str | None
     lyric: str | None
-    player_status: int
+    player_status: PlayerStatus
     input_source: FrameData
     light_effect: FrameData
     sound_index: int
@@ -81,7 +81,7 @@ class Status:
             max_volume=player["maxVolume"],
             song=player.get("song"),
             lyric=player.get("lyric"),
-            player_status=player["playerStatus"],
+            player_status=PlayerStatus(player["playerStatus"]),
             input_source=frame["inputSource"],
             light_effect=frame["lightEffect"],
             sound_index=sound_effect["soundIndex"],
@@ -97,15 +97,15 @@ class Status:
     def __str__(self) -> str:
         return "\n".join(
             (
-                "playing: %s / %s (status %s)"
+                "playing: %s / %s (status %r)"
                 % (self.song or "-", self.lyric or "-", self.player_status),
                 "volume : %s / %s" % (self.volume, self.max_volume),
-                "source : %s" % Source(self.input_source["selectedIndex"]),
-                "effect : %s" % LightEffect(self.light_effect["selectedIndex"]),
-                "color  : %s" % LightColor(self.light_effect["color"]),
-                "eq     : %s gains=%s"
+                "source : %r" % Source(self.input_source["selectedIndex"]),
+                "effect : %r" % LightEffect(self.light_effect["selectedIndex"]),
+                "color  : %r" % LightColor(self.light_effect["color"]),
+                "eq     : %r gains=%s"
                 % (EqPreset(self.eq_selected_index), self.eq_gains),
-                "battery: %s%% (%s)"
+                "battery: %s%% (%r)"
                 % (self.battery["box"], BatteryStatus(self.battery["status"])),
             )
         )
