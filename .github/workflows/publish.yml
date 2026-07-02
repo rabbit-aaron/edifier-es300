@@ -1,0 +1,30 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Gates each release behind the `pypi` environment's protection rules
+    # (e.g. required reviewers). Must match the environment on the PyPI publisher.
+    environment: pypi
+    # Required for PyPI Trusted Publishing (OIDC): uv exchanges this token for a
+    # short-lived PyPI credential — no stored secret.
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - name: Build
+        run: uv build
+
+      - name: Publish
+        run: uv publish --trusted-publishing always
