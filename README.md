@@ -30,7 +30,9 @@ async def main():
         print(await device.status())          # parsed Status (see below)
 
         await device.volume(20)               # 0..30
-        await device.play_pause()             # toggle
+        await device.play()                   # resume
+        await device.pause()                  # pause
+        await device.play_pause_toggle()      # toggle
         await device.next_track()
         await device.prev_track()
 
@@ -63,7 +65,7 @@ async with speakers[0] as device:
 
 ### Return values
 
-- Command methods (`volume`, `play_pause`, `input_source`, `eq_custom`, …) return
+- Command methods (`volume`, `play`, `input_source`, `eq_custom`, …) return
   `CommandResult`, a `tuple[bool, Status | None]` of `(acknowledged, new_state)`.
 - `status()` returns a `Status | None` (`None` only if the device stays silent).
 
@@ -112,7 +114,8 @@ python -m edifier_es300 [--host IP] [--port N] COMMAND [ARGS]
 | `discover` | — | list speakers on the LAN (`name  ip:port`) |
 | `status` | — | dump volume / source / light / EQ / battery |
 | `vol` | `LEVEL` (0..30) | set volume |
-| `play` / `pause` | — | toggle play/pause |
+| `play` / `pause` | — | resume / pause playback |
+| `play-pause` | — | toggle play/pause |
 | `next` / `prev` | — | skip track |
 | `light` | `on` \| `off` | LED strip on/off |
 | `light-brightness` | `LEVEL` (0..100) | LED brightness |

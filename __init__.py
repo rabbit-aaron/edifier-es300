@@ -57,8 +57,8 @@ class ES300:
         self._port: int = port
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
-        self._buffer: bytes = b""  # decoded receive buffer
-        self._offset: int = 0  # parse offset into _buffer
+        self._buffer = bytearray()  # decoded receive buffer; consumed bytes are trimmed
+        self._offset: int = 0  # scan cursor into _buffer
 
     def __str__(self) -> str:
         return "%s  %s:%s" % (self.name or "?", self._host, self._port)
@@ -135,6 +135,11 @@ class ES300:
                     yield json.loads(frame)
                 except Exception:
                     pass
+            # Drop consumed frames so the buffer only holds the unparsed tail --
+            # otherwise it would grow for the life of a long-running connection.
+            if self._offset:
+                del self._buffer[: self._offset]
+                self._offset = 0
             remaining = deadline - loop.time()
             if remaining <= 0:
                 return
@@ -186,8 +191,18 @@ class ES300:
     async def volume(self, level: int) -> CommandResult:
         return await self._command("player", {"volume": level})  # 0..30
 
-    async def play_pause(self) -> CommandResult:
-        return await self._command("player", {"playerStatus": 1})  # toggle
+    async def play(self) -> CommandResult:
+        return await self._command("player", {"playerStatus": 1})
+
+    async def pause(self) -> CommandResult:
+        return await self._command("player", {"playerStatus": 0})
+
+    async def play_pause_toggle(self) -> CommandResult:
+        # playerStatus: 0=paused, non-zero=playing. Toggle by sending the opposite
+        # of the current state, mirroring the app's play button.
+        current = await self.status()
+        playing = current is not None and current.player_status != 0
+        return await self._command("player", {"playerStatus": 0 if playing else 1})
 
     async def next_track(self) -> CommandResult:
         return await self._command("player", {"next": 1})

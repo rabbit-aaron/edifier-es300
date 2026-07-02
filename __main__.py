@@ -87,7 +87,7 @@ def status(target: Target) -> None:
 @cli.command()
 @click.argument("level", type=click.IntRange(0, 30))
 @click.pass_obj
-def vol(target: Target, level: int) -> None:
+def volume(target: Target, level: int) -> None:
     """Set volume (0..30)."""
     current = _report(
         f"volume={level}", _execute(target, lambda device: device.volume(level))
@@ -98,15 +98,22 @@ def vol(target: Target, level: int) -> None:
 @cli.command()
 @click.pass_obj
 def play(target: Target) -> None:
-    """Toggle play/pause."""
-    _report("play", _execute(target, lambda device: device.play_pause()))
+    """Resume playback."""
+    _report("play", _execute(target, lambda device: device.play()))
 
 
 @cli.command()
 @click.pass_obj
 def pause(target: Target) -> None:
+    """Pause playback."""
+    _report("pause", _execute(target, lambda device: device.pause()))
+
+
+@cli.command()
+@click.pass_obj
+def play_pause(target: Target) -> None:
     """Toggle play/pause."""
-    _report("pause", _execute(target, lambda device: device.play_pause()))
+    _report("play-pause", _execute(target, lambda device: device.play_pause_toggle()))
 
 
 @cli.command()
@@ -118,7 +125,7 @@ def next(target: Target) -> None:
 
 @cli.command()
 @click.pass_obj
-def prev(target: Target) -> None:
+def previous(target: Target) -> None:
     """Previous track."""
     _report("prev", _execute(target, lambda device: device.prev_track()))
 
