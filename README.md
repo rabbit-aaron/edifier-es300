@@ -25,26 +25,28 @@ few seconds).
 import asyncio
 from edifier_es300 import ES300, Source, EqPreset, LightEffect, LightColor
 
+
 async def main():
-    async with ES300("192.168.1.123", 8080) as device:
-        print(await device.status())          # parsed Status (see below)
+  async with ES300("192.168.1.123", 8080) as device:
+    print(await device.status())  # parsed Status (see below)
 
-        await device.volume(20)               # 0..30
-        await device.play()                   # resume
-        await device.pause()                  # pause
-        await device.play_pause_toggle()      # toggle
-        await device.next_track()
-        await device.prev_track()
+    await device.volume(20)  # 0..30
+    await device.play()  # resume
+    await device.pause()  # pause
+    await device.play_pause_toggle()  # toggle
+    await device.next_track()
+    await device.previous_track()
 
-        await device.input_source(Source.AIRPLAY)
+    await device.input_source(Source.AIRPLAY)
 
-        await device.light_switch(True)
-        await device.brightness(60)           # 0..100
-        await device.light_effect(LightEffect.BREATHING)
-        await device.light_color(LightColor.YELLOW)
+    await device.light_switch(True)
+    await device.brightness(60)  # 0..100
+    await device.light_effect(LightEffect.BREATHING)
+    await device.light_color(LightColor.YELLOW)
 
-        await device.eq_preset(EqPreset.VOCAL)
-        await device.eq_custom([10, 5, 0, 0, 0, -5])   # tenths of a dB (-30..30)
+    await device.eq_preset(EqPreset.VOCAL)
+    await device.eq_custom([10, 5, 0, 0, 0, -5])  # tenths of a dB (-30..30)
+
 
 asyncio.run(main())
 ```

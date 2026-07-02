@@ -70,6 +70,9 @@ class Status:
     eq_selected_index: int
     eq_gains: list[int]
     battery: Any
+    timer_shutdown: (
+        FrameData | None
+    )  # {timerIndex, timeShutdown(min), timeRemaining(min)}
     raw: FrameData  # the original frame, for fields not surfaced above
 
     @classmethod
@@ -91,8 +94,15 @@ class Status:
                 for band in sound_effect["soundEffectDIY"]["diyData"]
             ],
             battery=frame.get("battery"),
+            timer_shutdown=frame.get("timerShutdown"),
             raw=frame,
         )
+
+    def _timer_line(self) -> str:
+        # The device's timeRemaining doesn't count down (it holds the armed value
+        # until shutdown), so only the configured duration is worth showing.
+        minutes = (self.timer_shutdown or {}).get("timeShutdown", 0)
+        return "%smin" % minutes if minutes else "off"
 
     def __str__(self) -> str:
         return "\n".join(
@@ -107,6 +117,7 @@ class Status:
                 % (EqPreset(self.eq_selected_index), self.eq_gains),
                 "battery: %s%% (%r)"
                 % (self.battery["box"], BatteryStatus(self.battery["status"])),
+                "timer  : %s" % self._timer_line(),
             )
         )
 

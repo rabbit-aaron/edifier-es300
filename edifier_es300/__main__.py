@@ -112,16 +112,34 @@ def play_pause(target: Target) -> None:
 
 @cli.command()
 @click.pass_obj
-def next(target: Target) -> None:
+def next_track(target: Target) -> None:
     """Next track."""
-    _report("next", _execute(target, lambda device: device.next_track()))
+    _report("next-track", _execute(target, lambda device: device.next_track()))
 
 
 @cli.command()
 @click.pass_obj
-def previous(target: Target) -> None:
+def previous_track(target: Target) -> None:
     """Previous track."""
-    _report("prev", _execute(target, lambda device: device.prev_track()))
+    _report("previous-track", _execute(target, lambda device: device.previous_track()))
+
+
+@cli.command()
+@click.pass_obj
+def shutdown(target: Target) -> None:
+    """Power the speaker off (no remote power-on; use the physical button)."""
+    _report("shutdown", _execute(target, lambda device: device.shutdown()))
+
+
+@cli.command()
+@click.argument("minutes", type=click.IntRange(0, 1440))
+@click.pass_obj
+def timer_shutdown(target: Target, minutes: int) -> None:
+    """Set sleep timer in minutes (0 = off; app presets 5/15/30/60/180)."""
+    _report(
+        f"timer-shutdown {minutes}min",
+        _execute(target, lambda device: device.timer_shutdown(minutes)),
+    )
 
 
 @cli.command()

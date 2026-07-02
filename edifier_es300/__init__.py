@@ -213,8 +213,28 @@ class ES300:
     async def next_track(self) -> CommandResult:
         return await self._command("player", {"next": 1})
 
-    async def prev_track(self) -> CommandResult:
+    async def previous_track(self) -> CommandResult:
         return await self._command("player", {"previous": 1})
+
+    async def shutdown(self) -> CommandResult:
+        # Powers the speaker fully off (Wi-Fi radio included); there is no remote
+        # power-on, so it must be switched back on with the physical button.
+        return await self._command("deviceShutdown", 1)
+
+    async def timer_shutdown(self, minutes: int) -> CommandResult:
+        # Sleep timer in minutes (0 = off; app presets 5/15/30/60/180). Preserve the
+        # device's current timerIndex/timeRemaining and only change the duration,
+        # mirroring the app.
+        current = await self.status()
+        timer = (current.timer_shutdown or {}) if current else {}
+        return await self._command(
+            "timerShutdown",
+            {
+                "timerIndex": timer.get("timerIndex", 1),
+                "timeShutdown": minutes,
+                "timeRemaining": timer.get("timeRemaining", 0),
+            },
+        )
 
     async def brightness(self, level: int) -> CommandResult:
         return await self._command("lightEffect", {"brightness": level})  # 0..100
