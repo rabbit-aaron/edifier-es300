@@ -30,7 +30,6 @@ import json
 import logging
 import random
 import time
-import weakref
 from typing import Callable
 
 from edifier_es300.typing_ import (
@@ -127,31 +126,38 @@ class ES300:
         self._writer: asyncio.StreamWriter | None = None
         self._latest_status: Status | None = None
         self._wait_task_timeout = wait_task_timeout
-        self._status_callbacks: list[
-            weakref.ReferenceType[Callable[[Status], None]]
-        ] = []
-        self._heartbeat_callbacks: list[
-            weakref.ReferenceType[Callable[[FrameData], None]]
-        ] = []
+        self._status_callbacks: list[Callable[[Status], None]] = []
+        self._heartbeat_callbacks: list[Callable[[FrameData], None]] = []
 
     def __str__(self):
         return "%s  %s:%s" % (self.name or "?", self._host, self._port)
 
     def status_callback(self, func: Callable[[Status], None]):
-        self._status_callbacks.append(weakref.ref(func))
+        self._status_callbacks.append(func)
         return func
 
     def heartbeat_callback(self, func: Callable[[FrameData], None]):
-        self._heartbeat_callbacks.append(weakref.ref(func))
+        self._heartbeat_callbacks.append(func)
         return func
 
+    def remove_status_callback(self, func: Callable[[Status], None]):
+        try:
+            self._status_callbacks.remove(func)
+        except ValueError:
+            pass
+
+    def remove_heartbeat_callback(self, func: Callable[[FrameData], None]):
+        try:
+            self._heartbeat_callbacks.remove(func)
+        except ValueError:
+            pass
+
     async def _exec_callback(
-        self, weakref_list: list[weakref.ReferenceType], value: FrameData | Status
+        self, callbacks: list[Callable], value: FrameData | Status
     ):
-        for ref in weakref_list:
-            func = ref()
-            if func:
-                await func(value)
+        # Iterate a copy so a callback may remove itself during dispatch.
+        for func in list(callbacks):
+            await func(value)
 
     async def _exec_status_callbacks(self, status: Status):
         await self._exec_callback(self._status_callbacks, status)
