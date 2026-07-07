@@ -4,8 +4,7 @@ from typing import NamedTuple
 
 import click
 
-from edifier_es300 import ES300, EqPreset, LightColor, LightEffect, Source, Status
-from edifier_es300.typing_ import CommandResult
+from edifier_es300 import ES300, EqPreset, LightColor, LightEffect, Source
 
 DEFAULT_PORT: int = 8080
 
@@ -29,21 +28,15 @@ async def _resolve(target: Target) -> ES300:
     return speakers[0]
 
 
-def _execute(target: Target, action: Action):
+def _run_command(target: Target, action: Action):
     """Open a short-lived connection and run one coroutine against the device."""
 
-    async def runner():
-        device = await _resolve(target)
-        async with device:
-            return await action(device)
+    async def _runner():
+        speaker = await _resolve(target)
+        async with speaker:
+            return await action(speaker)
 
-    return asyncio.run(runner())
-
-
-def _report(label: str, result: CommandResult) -> Status | None:
-    acked, status = result
-    click.echo(("OK " if acked else "?? ") + label)
-    return status
+    return asyncio.run(_runner())
 
 
 @click.group()
@@ -74,7 +67,7 @@ def discover() -> None:
 @click.pass_obj
 def status(target: Target) -> None:
     """Dump volume / source / light / EQ / battery."""
-    current = _execute(target, lambda device: device.status())
+    current = _run_command(target, lambda speaker: speaker.status())
     click.echo(current or "no status (device idle; retry)")
 
 
@@ -83,52 +76,49 @@ def status(target: Target) -> None:
 @click.pass_obj
 def volume(target: Target, level: int) -> None:
     """Set volume (0..30)."""
-    current = _report(
-        f"volume={level}", _execute(target, lambda device: device.volume(level))
-    )
-    click.echo("now %s" % (current.volume if current else "?"))
+    _run_command(target, lambda speaker: speaker.volume(level))
 
 
 @cli.command()
 @click.pass_obj
 def play(target: Target) -> None:
     """Resume playback."""
-    _report("play", _execute(target, lambda device: device.play()))
+    _run_command(target, lambda speaker: speaker.play())
 
 
 @cli.command()
 @click.pass_obj
 def pause(target: Target) -> None:
     """Pause playback."""
-    _report("pause", _execute(target, lambda device: device.pause()))
+    _run_command(target, lambda speaker: speaker.pause())
 
 
 @cli.command()
 @click.pass_obj
 def play_pause(target: Target) -> None:
     """Toggle play/pause."""
-    _report("play-pause", _execute(target, lambda device: device.play_pause_toggle()))
+    _run_command(target, lambda speaker: speaker.play_pause_toggle())
 
 
 @cli.command()
 @click.pass_obj
 def next_track(target: Target) -> None:
     """Next track."""
-    _report("next-track", _execute(target, lambda device: device.next_track()))
+    _run_command(target, lambda speaker: speaker.next_track())
 
 
 @cli.command()
 @click.pass_obj
 def previous_track(target: Target) -> None:
     """Previous track."""
-    _report("previous-track", _execute(target, lambda device: device.previous_track()))
+    _run_command(target, lambda speaker: speaker.previous_track())
 
 
 @cli.command()
 @click.pass_obj
 def shutdown(target: Target) -> None:
     """Power the speaker off (no remote power-on; use the physical button)."""
-    _report("shutdown", _execute(target, lambda device: device.shutdown()))
+    _run_command(target, lambda speaker: speaker.shutdown())
 
 
 @cli.command()
@@ -136,10 +126,7 @@ def shutdown(target: Target) -> None:
 @click.pass_obj
 def timer_shutdown(target: Target, minutes: int) -> None:
     """Set sleep timer in minutes (0 = off; app presets 5/15/30/60/180)."""
-    _report(
-        f"timer-shutdown {minutes}min",
-        _execute(target, lambda device: device.timer_shutdown(minutes)),
-    )
+    _run_command(target, lambda speaker: speaker.timer_shutdown(minutes))
 
 
 @cli.command()
@@ -147,9 +134,7 @@ def timer_shutdown(target: Target, minutes: int) -> None:
 @click.pass_obj
 def light_brightness(target: Target, level: int) -> None:
     """Set LED brightness (0..100)."""
-    _report(
-        f"brightness={level}", _execute(target, lambda device: device.brightness(level))
-    )
+    _run_command(target, lambda speaker: speaker.brightness(level))
 
 
 @cli.command()
@@ -157,10 +142,7 @@ def light_brightness(target: Target, level: int) -> None:
 @click.pass_obj
 def light(target: Target, state: str) -> None:
     """Turn the LED strip on/off."""
-    _report(
-        f"light {state}",
-        _execute(target, lambda device: device.light_switch(state == "on")),
-    )
+    _run_command(target, lambda speaker: speaker.light_switch(state == "on"))
 
 
 @cli.command()
@@ -169,9 +151,7 @@ def light(target: Target, state: str) -> None:
 def light_effect(target: Target, name: str) -> None:
     """Set light effect."""
     chosen = LightEffect[name.upper()]
-    _report(
-        f"effect {name}", _execute(target, lambda device: device.light_effect(chosen))
-    )
+    _run_command(target, lambda speaker: speaker.light_effect(chosen))
 
 
 @cli.command()
@@ -180,10 +160,7 @@ def light_effect(target: Target, name: str) -> None:
 def light_color(target: Target, name: str) -> None:
     """Set light color (yellow or white)."""
     chosen = LightColor[name.upper()]
-    _report(
-        f"color {name}",
-        _execute(target, lambda device: device.light_color(chosen)),
-    )
+    _run_command(target, lambda speaker: speaker.light_color(chosen))
 
 
 @cli.command()
@@ -192,9 +169,7 @@ def light_color(target: Target, name: str) -> None:
 def source(target: Target, name: str) -> None:
     """Select input source."""
     chosen = Source[name.upper()]
-    _report(
-        f"source {name}", _execute(target, lambda device: device.input_source(chosen))
-    )
+    _run_command(target, lambda speaker: speaker.input_source(chosen))
 
 
 @cli.command()
@@ -202,26 +177,22 @@ def source(target: Target, name: str) -> None:
     "name", type=click.Choice(["classic", "monitor", "game", "vocal", "customized"])
 )
 @click.pass_obj
-def preset(target: Target, name: str) -> None:
+def eq_preset(target: Target, name: str) -> None:
     """Select an EQ preset."""
     chosen = EqPreset[name.upper()]
-    current = _report(
-        f"preset {name}", _execute(target, lambda device: device.eq_preset(chosen))
-    )
-    click.echo("selectedIndex %s" % (current.eq_selected_index if current else "?"))
+    _run_command(target, lambda speaker: speaker.eq_preset(chosen))
 
 
 @cli.command()
-@click.argument("gains", type=int, nargs=-1)
+@click.argument("gains", type=int, nargs=6)
 @click.pass_obj
-def eq(target: Target, gains: tuple[int, ...]) -> None:
+def eq(target: Target, gains: tuple[int, int, int, int, int, int]) -> None:
     """Set custom 6-band gains in tenths of a dB (-30..30 = -3.0..+3.0 dB), for 62/250/1k/4k/8k/16k Hz."""
-    label = "eq %s" % " ".join(str(gain) for gain in gains)
-    current = _report(
-        label, _execute(target, lambda device: device.eq_custom(list(gains)))
-    )
-    click.echo("gains %s" % (current.eq_gains if current else "?"))
+    _run_command(target, lambda speaker: speaker.eq_custom(gains))
 
 
 if __name__ == "__main__":
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
     cli()
