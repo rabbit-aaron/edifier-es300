@@ -172,10 +172,10 @@ class ES300:
 
     def _absorb_name(self, status: Status | None) -> Status | None:
         """Let a received status override the discovery name (when it carries one)."""
-        if status is not None:
-            name = status.raw.get("name")
-            if name:
-                self.name = name
+        try:
+            self.name = status.raw["name"] or self.name  # ty: ignore[unresolved-attribute]
+        except (AttributeError, KeyError):
+            pass  # status is None, or the frame carries no name
         return status
 
     async def __aenter__(self):
@@ -219,10 +219,11 @@ class ES300:
         try:
             message_id = payload["id"]
             future = self._command_storage.pop(message_id)
-            if not future.done():
-                future.set_result(self._latest_status)
+            future.set_result(self._latest_status)
         except KeyError:
             pass
+        except asyncio.InvalidStateError:
+            pass  # future already resolved/cancelled
 
     async def _handle_settings(self, message_id, payload, full_payload):
         try:
@@ -267,8 +268,10 @@ class ES300:
         # On EOF, fail everything still awaiting so callers don't hang forever.
         while self._command_storage:
             _, future = self._command_storage.popitem()
-            if not future.done():
+            try:
                 future.set_exception(EndOfStream())
+            except asyncio.InvalidStateError:
+                pass  # future already resolved/cancelled
 
     async def _write_command(self, message: CommandMessage):
         assert self._writer is not None, "not connected (use 'async with')"
@@ -300,11 +303,13 @@ class ES300:
     async def play_pause_toggle(self):
         # Toggle by sending the opposite of the current state, like the app's button.
         current = await self.status()
-        playing = current is not None and current.player_status is PlayerStatus.PLAYING
-        target = PlayerStatus.STOPPED if playing else PlayerStatus.PLAYING
-        return await self._command(
-            CommandMessage("player", {"playerStatus": int(target)})
-        )
+        try:
+            target = current.player_status ^ 1  # ty: ignore[unresolved-attribute]
+        except AttributeError:
+            # current is None
+            target = int(PlayerStatus.PLAYING)
+
+        return await self._command(CommandMessage("player", {"playerStatus": target}))
 
     async def next_track(self):
         return await self._command(CommandMessage("player", {"next": 1}))
@@ -320,15 +325,11 @@ class ES300:
     async def timer_shutdown(self, minutes: int):
         # Sleep timer in minutes (0 = off; app presets 5/15/30/60/180). Preserve the
         # device's current timerIndex/timeRemaining and only change the duration.
-        current = await self.status()
-        timer = (current.timer_shutdown or {}) if current else {}
         return await self._command(
             CommandMessage(
                 "timerShutdown",
                 {
-                    "timerIndex": timer.get("timerIndex", 1),
                     "timeShutdown": minutes,
-                    "timeRemaining": timer.get("timeRemaining", 0),
                 },
             )
         )

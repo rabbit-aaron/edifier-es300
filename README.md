@@ -45,11 +45,19 @@ async def main():
     await device.light_color(LightColor.YELLOW)
 
     await device.eq_preset(EqPreset.VOCAL)
-    await device.eq_custom([10, 5, 0, 0, 0, -5])  # tenths of a dB (-30..30)
+    await device.eq_custom((10, 5, 0, 0, 0, -5))  # 6 gains, tenths of a dB (-30..30)
+
+    await device.timer_shutdown(30)  # sleep timer in minutes (0 = off)
+    await device.shutdown()  # power off (no remote power-on; physical button to wake)
 
 
 asyncio.run(main())
 ```
+
+Internally the context manager holds the socket open and runs a background task that
+reads every inbound frame. Each command carries a generated `id`; the device echoes
+it in its reply, and the background task hands the reply to the awaiting call — so
+`await device.volume(20)` returns only once that command's ack comes back.
 
 ### Discovery
 
@@ -65,24 +73,46 @@ async with speakers[0] as device:
     await device.volume(15)
 ```
 
-### Return values
+### Return values & errors
 
-- Command methods (`volume`, `play`, `input_source`, `eq_custom`, …) return
-  `CommandResult`, a `tuple[bool, Status | None]` of `(acknowledged, new_state)`.
+- Command methods (`volume`, `play`, `input_source`, `eq_custom`, …) return the
+  device's raw ack frame (a `FrameData` dict). They raise `CommandFailed` if the
+  device acks with a non-`success` message, or `EndOfStream` if the socket drops
+  before the ack arrives.
 - `status()` returns a `Status | None` (`None` only if the device stays silent).
+
+### Live callbacks
+
+Register callbacks to react to unsolicited frames the device pushes while a
+connection is held open. Both are usable as decorators and hold the callback by
+**weak reference** (drop your reference and it stops firing):
+
+```python
+async with ES300("192.168.1.123") as device:
+    @device.status_callback
+    async def on_status(status: Status):
+        print("state changed:", status.volume)
+
+    @device.heartbeat_callback
+    async def on_heartbeat(frame):
+        print("heartbeat")
+
+    await asyncio.sleep(60)  # callbacks fire as frames arrive
+```
 
 ### `Status`
 
 `str(status)` renders a human-readable dump (this is what the CLI `status` prints):
 
 ```
-playing: - / - (status 0)
+playing: - / - (status <PlayerStatus.PLAYING: 1>)
 volume : 6 / 30
-source : Source.AIRPLAY
-effect : LightEffect.STATIC
-color  : LightColor.YELLOW
-eq     : EqPreset.CLASSIC gains=[0, 0, 0, 0, 0, 0]
-battery: 100% (BatteryStatus.CONNECTED)
+source : <Source.USB: 2>
+effect : <LightEffect.STATIC: 1>
+color  : <LightColor.YELLOW: {'r': 255, 'g': 170, 'b': 60}>
+eq     : <EqPreset.CLASSIC: 0> gains=[20, 10, 0, -5, 5, 10]
+battery: 40% (<BatteryStatus.DISCONNECTED: 2>)
+timer  : off
 ```
 
 Fields: `volume`, `max_volume`, `song`, `lyric`, `player_status`, `input_source`,
@@ -115,28 +145,30 @@ python -m edifier_es300 [--host IP] [--port N] COMMAND [ARGS]
 |---------|------|-------------|
 | `discover` | — | list speakers on the LAN (`name  ip:port`) |
 | `status` | — | dump volume / source / light / EQ / battery |
-| `vol` | `LEVEL` (0..30) | set volume |
+| `volume` | `LEVEL` (0..30) | set volume |
 | `play` / `pause` | — | resume / pause playback |
 | `play-pause` | — | toggle play/pause |
-| `next` / `prev` | — | skip track |
+| `next-track` / `previous-track` | — | skip track |
+| `shutdown` | — | power the speaker off (no remote power-on) |
+| `timer-shutdown` | `MINUTES` (0..1440) | sleep timer (0 = off; app presets 5/15/30/60/180) |
 | `light` | `on` \| `off` | LED strip on/off |
 | `light-brightness` | `LEVEL` (0..100) | LED brightness |
 | `light-effect` | `static` \| `breathing` \| `waterflow` | LED effect |
 | `light-color` | `yellow` \| `white` | LED color |
 | `source` | `bluetooth` \| `aux` \| `usb` \| `airplay` | input source |
-| `preset` | `classic` \| `monitor` \| `game` \| `vocal` \| `customized` | EQ preset |
-| `eq` | `GAINS...` | 6 custom gains, tenths of a dB (-30..30 = -3.0..+3.0 dB) |
+| `eq-preset` | `classic` \| `monitor` \| `game` \| `vocal` \| `customized` | EQ preset |
+| `eq` | `G1..G6` | exactly 6 custom gains, tenths of a dB (-30..30 = -3.0..+3.0 dB) |
 
 ### Examples
 
 ```bash
 python -m edifier_es300 discover
 python -m edifier_es300 status                       # auto-discover, then dump state
-python -m edifier_es300 --host 192.168.1.123 vol 22
+python -m edifier_es300 --host 192.168.1.123 volume 22
 python -m edifier_es300 source airplay
 python -m edifier_es300 light-effect breathing
 python -m edifier_es300 light-color yellow
-python -m edifier_es300 preset vocal
+python -m edifier_es300 eq-preset vocal
 python -m edifier_es300 eq -- 10 5 0 0 0 -5          # use -- so negatives aren't read as options
 ```
 
