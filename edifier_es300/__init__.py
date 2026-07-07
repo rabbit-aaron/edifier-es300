@@ -47,6 +47,18 @@ KEY = 0xA5
 logger = logging.getLogger(__name__)
 
 
+__all__ = [
+    "ES300",
+    "EqPreset",
+    "LightColor",
+    "LightEffect",
+    "PlayerStatus",
+    "Source",
+    "Status",
+    "FrameData",
+]
+
+
 def _xor(data: bytes) -> bytes:
     return bytes(byte ^ KEY for byte in data)
 
@@ -185,13 +197,19 @@ class ES300:
         return status
 
     async def __aenter__(self):
+        await self.open()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    async def open(self):
         self._reader, self._writer = await asyncio.open_connection(
             self._host, self._port
         )
         self._consume_task = asyncio.create_task(self._start(self._reader))
-        return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def close(self):
         try:
             async with asyncio.timeout(self._wait_task_timeout):
                 await self._wait_for_in_flight_commands_to_finish()
